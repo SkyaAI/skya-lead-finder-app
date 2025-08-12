@@ -5,12 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Skya Lead Generation Bot — Demo</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>.pill{padding:4px 8px;border-radius:9999px;font-size:12px;border:1px solid #e5e7eb}</style>
+  <style>
+    .pill{padding:4px 8px;border-radius:9999px;font-size:12px;border:1px solid #e5e7eb}
+  </style>
 </head>
 <body class="min-h-screen bg-gray-50 p-6">
   <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow p-6 font-sans">
     <h1 class="text-2xl font-bold mb-4">Skya Lead Generation Bot</h1>
 
+    <!-- Inputs with labels -->
     <form class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" onsubmit="onSearch(event)">
       <div class="flex flex-col gap-1">
         <label for="subject" class="text-sm font-medium text-gray-700">Subject</label>
@@ -31,51 +34,66 @@
       </div>
     </form>
 
-    <div id="filters" class="mb-3 hidden text-sm"></div>
-    <div id="status" class="text-xs text-gray-500 mb-2"></div>
+    <!-- pills + status -->
+    <div id="filters" class="mb-2 hidden text-sm"></div>
+    <div id="status" class="text-xs text-gray-500 mb-3"></div>
+
+    <!-- results -->
     <div id="empty" class="text-gray-500">No results yet. Try a search above.</div>
     <div id="results"></div>
 
     <div class="mt-6 text-xs text-gray-400">
-      Demo mode with mock data if API key is missing or quota is hit.
+      Uses Google Places via a Vercel serverless function. Falls back to mock data if the API key is missing or quota is hit.
     </div>
   </div>
 
   <script>
-    // ------- state & helpers -------
-    var currentResults = [];
+    // ---------- state ----------
+    let currentResults = [];
+
+    // ---------- UI helpers ----------
     function pill(t,cls){ return '<span class="pill '+cls+'">'+t+'</span>'; }
+
     function showFilters(subject, industry, location){
-      var pills = [];
-      if(subject.trim()) pills.push(pill('Subject: '+subject,'bg-blue-50 text-blue-700'));
+      const pills = [];
+      if(subject.trim())  pills.push(pill('Subject: '+subject,'bg-blue-50 text-blue-700'));
       if(industry.trim()) pills.push(pill('Industry: '+industry,'bg-green-50 text-green-700'));
       if(location.trim()) pills.push(pill('Location: '+location,'bg-gray-100 text-gray-700'));
-      var el = document.getElementById('filters');
-      if(pills.length){ el.classList.remove('hidden'); el.innerHTML = '<div class="flex flex-wrap gap-2">'+pills.join('')+'</div>'; }
-      else { el.classList.add('hidden'); el.innerHTML = ''; }
+
+      const el = document.getElementById('filters');
+      if(pills.length){
+        el.classList.remove('hidden');
+        el.innerHTML = '<div class="flex flex-wrap gap-2">'+pills.join('')+'</div>';
+      } else {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+      }
     }
+
     function render(list){
-      var resultsEl = document.getElementById('results');
-      var emptyEl = document.getElementById('empty');
+      const resultsEl = document.getElementById('results');
+      const emptyEl = document.getElementById('empty');
       resultsEl.innerHTML = '';
       if(!list || list.length===0){ emptyEl.classList.remove('hidden'); return; }
       emptyEl.classList.add('hidden');
 
-      list.forEach(function(c){
-        var contactsHtml = (c.contacts && c.contacts.length)
-          ? '<ul>'+c.contacts.map(function(p){
-              return '<li class="py-2 border-t flex justify-between">'+
-                '<div><div class="font-medium">'+(p.name||'—')+
-                ' <span class="text-sm text-gray-500">'+(p.role?('• '+p.role):'')+'</span></div>'+
-                '<div class="text-sm text-gray-600">'+(p.email||'no email')+' • '+
-                (p.linkedin?('<a class="underline" target="_blank" rel="noreferrer" href="'+p.linkedin+'">LinkedIn</a>'):'no LinkedIn')+
-                '</div></div>'+
+      list.forEach(c => {
+        const contactsHtml = (c.contacts && c.contacts.length)
+          ? '<ul>'+c.contacts.map(p => (
+              '<li class="py-2 border-t flex justify-between">'+
+                '<div>'+
+                  '<div class="font-medium">'+(p.name||'—')+
+                    ' <span class="text-sm text-gray-500">'+(p.role?('• '+p.role):'')+'</span></div>'+
+                  '<div class="text-sm text-gray-600">'+(p.email||'no email')+' • '+
+                    (p.linkedin?('<a class="underline" target="_blank" rel="noreferrer" href="'+p.linkedin+'">LinkedIn</a>'):'no LinkedIn')+
+                  '</div>'+
+                '</div>'+
                 '<div class="text-sm text-gray-500">Confidence: '+Math.round((p.confidence||0)*100)+'%</div>'+
-              '</li>';
-            }).join('') + '</ul>'
+              '</li>'
+            )).join('') + '</ul>'
           : '<div class="text-gray-500">No contacts found.</div>';
 
-        var card = document.createElement('div');
+        const card = document.createElement('div');
         card.className = 'p-4 border rounded mb-3';
         card.innerHTML =
           '<div class="flex justify-between items-start">'+
@@ -94,14 +112,18 @@
       });
     }
 
-    // ------- actions -------
+    // ---------- actions ----------
     async function onSearch(e){
-      if(e && e.preventDefault) e.preventDefault();
-      var subject = document.getElementById('subject').value || '';
-      var industry = document.getElementById('industry').value || '';
-      var location = document.getElementById('location').value || '';
+      if (e && e.preventDefault) e.preventDefault();
+
+      const subject  = document.getElementById('subject').value || '';
+      const industry = document.getElementById('industry').value || '';
+      const location = document.getElementById('location').value || '';
+
       showFilters(subject, industry, location);
-      document.getElementById('status').textContent = 'Searching…';
+
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = 'Searching…';
 
       try {
         const r = await fetch('/api/search', {
@@ -110,12 +132,18 @@
           body: JSON.stringify({ subject, industry, location })
         });
         const data = await r.json();
-        document.getElementById('status').textContent =
-          data.mode === 'live' ? 'Live results from Places API' : 'Mock results (no key or quota error)';
-        currentResults = (data.companies || []).sort((a,b)=> (b.leadScore||0)-(a.leadScore||0));
+
+        // show where results came from & exact backend query string
+        statusEl.textContent =
+          (data.mode === 'live' ? 'Live results' : 'Mock results') +
+          ' • Query: ' + (data.queryUsed || '(none)');
+
+        currentResults = (data.companies || [])
+          .sort((a,b)=> (b.leadScore||0)-(a.leadScore||0));
+
         render(currentResults);
       } catch (err) {
-        document.getElementById('status').textContent = 'Error: '+ (err?.message||'Unknown');
+        statusEl.textContent = 'Error: ' + (err?.message || 'Unknown');
         console.error(err);
       }
     }
@@ -133,16 +161,14 @@
     }
 
     function onExport(){
-      var list = currentResults.length ? currentResults : [];
+      const list = currentResults.length ? currentResults : [];
       if (!list.length) { alert('Run a search first.'); return; }
-      var rows = [['Company','Website','Address','Lead Score','Revenue Range']];
-      list.forEach(function(c){
-        rows.push([c.name||'', c.website||'', c.address||'', c.leadScore||'', c.revenueRange||'']);
-      });
-      var csv = rows.map(function(r){ return r.map(function(cell){ return '"' + String(cell||'').replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
-      var blob = new Blob([csv], {type:'text/csv'});
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a'); a.href = url; a.download = 'leads.csv';
+      const rows = [['Company','Website','Address','Lead Score','Revenue Range']];
+      list.forEach(c => rows.push([c.name||'', c.website||'', c.address||'', c.leadScore||'', c.revenueRange||'']));
+      const csv = rows.map(r => r.map(cell => `"${String(cell||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'leads.csv';
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     }
