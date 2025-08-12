@@ -5,16 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Skya Lead Generation Bot — Demo</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    /* small UX polish */
-    .pill { padding: 4px 8px; border-radius: 9999px; font-size: 12px; border: 1px solid #e5e7eb; }
-  </style>
+  <style>.pill{padding:4px 8px;border-radius:9999px;font-size:12px;border:1px solid #e5e7eb}</style>
 </head>
 <body class="min-h-screen bg-gray-50 p-6">
   <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow p-6 font-sans">
     <h1 class="text-2xl font-bold mb-4">Skya Lead Generation Bot</h1>
 
-    <!-- Inputs with labels -->
     <form class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" onsubmit="onSearch(event)">
       <div class="flex flex-col gap-1">
         <label for="subject" class="text-sm font-medium text-gray-700">Subject</label>
@@ -35,66 +31,25 @@
       </div>
     </form>
 
-    <!-- Active filters -->
     <div id="filters" class="mb-3 hidden text-sm"></div>
-
+    <div id="status" class="text-xs text-gray-500 mb-2"></div>
     <div id="empty" class="text-gray-500">No results yet. Try a search above.</div>
     <div id="results"></div>
 
     <div class="mt-6 text-xs text-gray-400">
-      Demo mode with mock data. No logins, no API calls.
+      Demo mode with mock data if API key is missing or quota is hit.
     </div>
   </div>
 
   <script>
-    // -------- Mock data --------
-    var DATA = [
-      { name:'AI Logistics Pty Ltd', website:'https://ailogistics.example', address:'CBD, Sydney',
-        domain:'ailogistics.example', description:'AI supply chain solutions for manufacturers',
-        revenueRange:'$10M–$50M', contacts:[
-          { name:'Sarah Wong', role:'CTO', email:'sarah@ailogistics.example', linkedin:'#', confidence:0.90 },
-          { name:'James Roberts', role:'Head of Supply Chain', email:'james@ailogistics.example', linkedin:'#', confidence:0.80 }
-        ]},
-      { name:'Smart Manufacturing AI', website:'https://smaiai.example', address:'North Sydney',
-        domain:'smaiai.example', description:'AI for manufacturing optimisation',
-        revenueRange:'$5M–$25M', contacts:[
-          { name:'Priya Patel', role:'Head of Operations', email:'priya@smaiai.example', linkedin:'#', confidence:0.87 }
-        ]},
-      { name:'Robotics & Co.', website:'https://roboticsco.example', address:'Melbourne, Australia',
-        domain:'roboticsco.example', description:'Robotics hardware and supply chain analytics for factories',
-        revenueRange:'$25M–$75M', contacts:[
-          { name:'Tom Nguyen', role:'COO', email:'tom@roboticsco.example', linkedin:'#', confidence:0.82 }
-        ]}
-    ];
-
-    // -------- State --------
+    // ------- state & helpers -------
     var currentResults = [];
-
-    // -------- Helpers --------
-    function tokens(s){ return String(s||'').toLowerCase().trim().split(/\s+/).filter(Boolean); }
-    function containsAll(text, query){
-      if(!query || !query.trim()) return true;
-      var t = String(text||'').toLowerCase();
-      var q = tokens(query);
-      for(var i=0;i<q.length;i++){ if(t.indexOf(q[i]) === -1) return false; }
-      return true;
-    }
-    function computeLeadScore(c, subject, industry, location){
-      var combined = [c.name,c.description,c.address,c.domain].join(' ').toLowerCase();
-      var score = 0;
-      if(containsAll(combined, subject)) score += 50;
-      if(containsAll(combined, industry)) score += 30;
-      if(containsAll(c.address||'', location)) score += 20;
-      if(score===0) score = 10;
-      if(score>100) score = 100;
-      return score;
-    }
-    function pill(text, cls){ return '<span class="pill '+cls+'">'+text+'</span>'; }
+    function pill(t,cls){ return '<span class="pill '+cls+'">'+t+'</span>'; }
     function showFilters(subject, industry, location){
       var pills = [];
-      if(subject.trim()) pills.push(pill('Subject: '+subject, 'bg-blue-50 text-blue-700'));
-      if(industry.trim()) pills.push(pill('Industry: '+industry, 'bg-green-50 text-green-700'));
-      if(location.trim()) pills.push(pill('Location: '+location, 'bg-gray-100 text-gray-700'));
+      if(subject.trim()) pills.push(pill('Subject: '+subject,'bg-blue-50 text-blue-700'));
+      if(industry.trim()) pills.push(pill('Industry: '+industry,'bg-green-50 text-green-700'));
+      if(location.trim()) pills.push(pill('Location: '+location,'bg-gray-100 text-gray-700'));
       var el = document.getElementById('filters');
       if(pills.length){ el.classList.remove('hidden'); el.innerHTML = '<div class="flex flex-wrap gap-2">'+pills.join('')+'</div>'; }
       else { el.classList.add('hidden'); el.innerHTML = ''; }
@@ -106,70 +61,63 @@
       if(!list || list.length===0){ emptyEl.classList.remove('hidden'); return; }
       emptyEl.classList.add('hidden');
 
-      for(var i=0;i<list.length;i++){
-        var c = list[i];
-        var contactsHtml = '';
-        if(c.contacts && c.contacts.length){
-          contactsHtml = '<ul>';
-          for(var j=0;j<c.contacts.length;j++){
-            var p = c.contacts[j];
-            contactsHtml += '' +
-              '<li class="py-2 border-t flex justify-between">' +
-                '<div>' +
-                  '<div class="font-medium">'+ (p.name||'—') +
-                    ' <span class="text-sm text-gray-500">'+ (p.role?('• '+p.role):'') +'</span></div>' +
-                  '<div class="text-sm text-gray-600">'+ (p.email||'no email') +' • '+
-                    (p.linkedin?('<a class="underline" target="_blank" rel="noreferrer" href="'+p.linkedin+'">LinkedIn</a>'):'no LinkedIn') +
-                  '</div>' +
-                '</div>' +
-                '<div class="text-sm text-gray-500">Confidence: '+ Math.round((p.confidence||0)*100) +'%</div>' +
+      list.forEach(function(c){
+        var contactsHtml = (c.contacts && c.contacts.length)
+          ? '<ul>'+c.contacts.map(function(p){
+              return '<li class="py-2 border-t flex justify-between">'+
+                '<div><div class="font-medium">'+(p.name||'—')+
+                ' <span class="text-sm text-gray-500">'+(p.role?('• '+p.role):'')+'</span></div>'+
+                '<div class="text-sm text-gray-600">'+(p.email||'no email')+' • '+
+                (p.linkedin?('<a class="underline" target="_blank" rel="noreferrer" href="'+p.linkedin+'">LinkedIn</a>'):'no LinkedIn')+
+                '</div></div>'+
+                '<div class="text-sm text-gray-500">Confidence: '+Math.round((p.confidence||0)*100)+'%</div>'+
               '</li>';
-          }
-          contactsHtml += '</ul>';
-        } else {
-          contactsHtml = '<div class="text-gray-500">No contacts found.</div>';
-        }
+            }).join('') + '</ul>'
+          : '<div class="text-gray-500">No contacts found.</div>';
 
         var card = document.createElement('div');
         card.className = 'p-4 border rounded mb-3';
         card.innerHTML =
-          '<div class="flex justify-between items-start">' +
-            '<div>' +
-              '<div class="text-lg font-semibold">'+ c.name +'</div>' +
-              '<div class="text-sm text-gray-600">'+ (c.address||'') +' • ' +
+          '<div class="flex justify-between items-start">'+
+            '<div>'+
+              '<div class="text-lg font-semibold">'+ (c.name||'—') +'</div>'+
+              '<div class="text-sm text-gray-600">'+ (c.address||'') +' • '+
                 (c.website ? '<a class="underline" href="'+c.website+'" target="_blank" rel="noreferrer">Website</a>' : '—') +
-              '</div>' +
-            '</div>' +
-            '<div class="text-sm text-gray-700">Lead score: '+ (c.leadScore!=null?c.leadScore:'—') +'</div>' +
-          '</div>' +
-          '<div class="mt-1 text-sm text-gray-500">Estimated revenue: '+ (c.revenueRange||'—') +'</div>' +
+              '</div>'+
+            '</div>'+
+            '<div class="text-sm text-gray-700">Lead score: '+ (c.leadScore!=null?c.leadScore:'—') +'</div>'+
+          '</div>'+
+          '<div class="mt-1 text-sm text-gray-500">Estimated revenue: '+ (c.revenueRange||'—') +'</div>'+
           '<div class="mt-3"><div class="font-medium">Key contacts</div>'+ contactsHtml +'</div>';
 
         resultsEl.appendChild(card);
-      }
+      });
     }
 
-    // -------- Button handlers (no event timing issues) --------
-    function onSearch(e){
+    // ------- actions -------
+    async function onSearch(e){
       if(e && e.preventDefault) e.preventDefault();
       var subject = document.getElementById('subject').value || '';
       var industry = document.getElementById('industry').value || '';
       var location = document.getElementById('location').value || '';
       showFilters(subject, industry, location);
+      document.getElementById('status').textContent = 'Searching…';
 
-      var out = [];
-      for(var i=0;i<DATA.length;i++){
-        var c = DATA[i];
-        var hay = [c.name,c.description,c.address,c.domain].join(' ');
-        var include = containsAll(hay, subject) && containsAll(hay, industry) && containsAll(c.address||'', location);
-        if(!include) continue;
-        var clone = JSON.parse(JSON.stringify(c));
-        clone.leadScore = computeLeadScore(c, subject, industry, location);
-        out.push(clone);
+      try {
+        const r = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ subject, industry, location })
+        });
+        const data = await r.json();
+        document.getElementById('status').textContent =
+          data.mode === 'live' ? 'Live results from Places API' : 'Mock results (no key or quota error)';
+        currentResults = (data.companies || []).sort((a,b)=> (b.leadScore||0)-(a.leadScore||0));
+        render(currentResults);
+      } catch (err) {
+        document.getElementById('status').textContent = 'Error: '+ (err?.message||'Unknown');
+        console.error(err);
       }
-      out.sort(function(a,b){ return (b.leadScore||0)-(a.leadScore||0); });
-      currentResults = out;
-      render(currentResults);
     }
 
     function onReset(){
@@ -181,24 +129,17 @@
       document.getElementById('filters').innerHTML = '';
       document.getElementById('results').innerHTML = '';
       document.getElementById('empty').classList.remove('hidden');
+      document.getElementById('status').textContent = '';
     }
 
     function onExport(){
-      var list = currentResults.length ? currentResults : DATA;
-      var rows = [['Company','Website','Address','Lead Score','Revenue Range','Contact Name','Contact Role','Contact Email','LinkedIn']];
-      for(var i=0;i<list.length;i++){
-        var c = list[i], p = (c.contacts && c.contacts[0]) || {};
-        rows.push([c.name||'', c.website||'', c.address||'', c.leadScore||'', c.revenueRange||'', p.name||'', p.role||'', p.email||'', p.linkedin||'']);
-      }
-      var csv = '';
-      for(var r=0;r<rows.length;r++){
-        var line = [];
-        for(var k=0;k<rows[r].length;k++){
-          var cell = String(rows[r][k]||'').replace(/"/g,'""');
-          line.push('"' + cell + '"');
-        }
-        csv += line.join(',') + '\n';
-      }
+      var list = currentResults.length ? currentResults : [];
+      if (!list.length) { alert('Run a search first.'); return; }
+      var rows = [['Company','Website','Address','Lead Score','Revenue Range']];
+      list.forEach(function(c){
+        rows.push([c.name||'', c.website||'', c.address||'', c.leadScore||'', c.revenueRange||'']);
+      });
+      var csv = rows.map(function(r){ return r.map(function(cell){ return '"' + String(cell||'').replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
       var blob = new Blob([csv], {type:'text/csv'});
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a'); a.href = url; a.download = 'leads.csv';
