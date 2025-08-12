@@ -10,186 +10,115 @@
   <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow p-6 font-sans">
     <h1 class="text-2xl font-bold mb-4">Skya Lead Generation Bot</h1>
 
-    <!-- Inputs with labels -->
     <form id="form" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
       <div class="flex flex-col gap-1">
         <label for="subject" class="text-sm font-medium text-gray-700">Subject</label>
-        <input id="subject" value="AI supply chain" aria-label="Subject"
-               placeholder="e.g. AI supply chain" class="p-3 border rounded" />
+        <input id="subject" value="AI supply chain" class="p-3 border rounded" placeholder="e.g. AI supply chain" />
       </div>
       <div class="flex flex-col gap-1">
         <label for="industry" class="text-sm font-medium text-gray-700">Industry</label>
-        <input id="industry" value="manufacturing" aria-label="Industry"
-               placeholder="e.g. manufacturing" class="p-3 border rounded" />
+        <input id="industry" value="manufacturing" class="p-3 border rounded" placeholder="e.g. manufacturing" />
       </div>
       <div class="flex flex-col gap-1">
         <label for="location" class="text-sm font-medium text-gray-700">Location</label>
-        <input id="location" value="Sydney, Australia" aria-label="Location"
-               placeholder="e.g. Sydney, Australia" class="p-3 border rounded" />
+        <input id="location" value="Sydney, Australia" class="p-3 border rounded" placeholder="e.g. Sydney, Australia" />
       </div>
       <div class="md:col-span-3 flex gap-3 mt-2">
-        <button id="searchBtn" class="px-4 py-2 bg-blue-600 text-white rounded" type="submit">Search</button>
-        <button id="exportBtn" class="px-4 py-2 bg-green-600 text-white rounded" type="button">Export CSV</button>
-        <button id="resetBtn" class="px-4 py-2 bg-gray-200 rounded" type="button">Reset</button>
+        <button id="searchBtn" type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Search</button>
+        <button id="exportBtn" type="button" class="px-4 py-2 bg-green-600 text-white rounded">Export CSV</button>
+        <button id="resetBtn" type="button" class="px-4 py-2 bg-gray-200 rounded">Reset</button>
       </div>
     </form>
 
-    <!-- Active filters -->
-    <div id="filters" class="mb-3 hidden text-sm"></div>
-
-    <div id="error" class="hidden mb-4 text-red-600"></div>
     <div id="empty" class="text-gray-500">No results yet. Try a search above.</div>
     <div id="results"></div>
 
-    <div class="mt-6 text-xs text-gray-400">
-      Demo mode with mock data. No logins, no API calls.
-    </div>
+    <div class="mt-6 text-xs text-gray-400">Demo mode with mock data. No logins, no API calls.</div>
   </div>
 
   <script>
-    const resultsEl = document.getElementById('results');
-    const emptyEl = document.getElementById('empty');
-    const errorEl = document.getElementById('error');
-    const filtersEl = document.getElementById('filters');
-
-    // Mock dataset
-    const DATA = [
-      {
-        name: 'AI Logistics Pty Ltd',
-        website: 'https://ailogistics.example',
-        address: 'CBD, Sydney',
-        domain: 'ailogistics.example',
-        description: 'AI supply chain solutions for manufacturers',
-        revenueRange: '$10M–$50M',
-        contacts: [
-          { name: 'Sarah Wong', role: 'CTO', email: 'sarah@ailogistics.example', linkedin: '#', confidence: 0.9 },
-          { name: 'James Roberts', role: 'Head of Supply Chain', email: 'james@ailogistics.example', linkedin: '#', confidence: 0.8 },
-        ],
-      },
-      {
-        name: 'Smart Manufacturing AI',
-        website: 'https://smaiai.example',
-        address: 'North Sydney',
-        domain: 'smaiai.example',
-        description: 'AI for manufacturing optimisation',
-        revenueRange: '$5M–$25M',
-        contacts: [
-          { name: 'Priya Patel', role: 'Head of Operations', email: 'priya@smaiai.example', linkedin: '#', confidence: 0.87 },
-        ],
-      },
-      {
-        name: 'Robotics & Co.',
-        website: 'https://roboticsco.example',
-        address: 'Melbourne, Australia',
-        domain: 'roboticsco.example',
-        description: 'Robotics hardware and supply chain analytics for factories',
-        revenueRange: '$25M–$75M',
-        contacts: [
-          { name: 'Tom Nguyen', role: 'COO', email: 'tom@roboticsco.example', linkedin: '#', confidence: 0.82 },
-        ],
-      },
+    // --- Mock data ---
+    var DATA = [
+      { name:'AI Logistics Pty Ltd', website:'https://ailogistics.example', address:'CBD, Sydney',
+        domain:'ailogistics.example', description:'AI supply chain solutions for manufacturers',
+        revenueRange:'$10M–$50M', contacts:[
+          { name:'Sarah Wong', role:'CTO', email:'sarah@ailogistics.example', linkedin:'#', confidence:0.9 },
+          { name:'James Roberts', role:'Head of Supply Chain', email:'james@ailogistics.example', linkedin:'#', confidence:0.8 }
+        ]},
+      { name:'Smart Manufacturing AI', website:'https://smaiai.example', address:'North Sydney',
+        domain:'smaiai.example', description:'AI for manufacturing optimisation',
+        revenueRange:'$5M–$25M', contacts:[
+          { name:'Priya Patel', role:'Head of Operations', email:'priya@smaiai.example', linkedin:'#', confidence:0.87 }
+        ]},
+      { name:'Robotics & Co.', website:'https://roboticsco.example', address:'Melbourne, Australia',
+        domain:'roboticsco.example', description:'Robotics hardware and supply chain analytics for factories',
+        revenueRange:'$25M–$75M', contacts:[
+          { name:'Tom Nguyen', role:'COO', email:'tom@roboticsco.example', linkedin:'#', confidence:0.82 }
+        ]}
     ];
 
-    // Helpers
-    const tokens = s => (s || '').toString().trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const containsAll = (hay, query) => {
-      if (!query || !query.trim()) return true;
-      const h = hay.toLowerCase();
-      return tokens(query).every(t => h.includes(t));
-    };
-
-    function computeLeadScore(company, subject, industry, location) {
-      const body = [company.name, company.description, company.address, company.domain].join(' ').toLowerCase();
-      let score = 0;
-      if (containsAll(body, subject)) score += 50;
-      if (containsAll(body, industry)) score += 30;
-      if (containsAll(company.address.toLowerCase(), location)) score += 20;
-      return Math.max(10, Math.min(100, score || 10));
+    // --- Helpers ---
+    function tokens(s){ return String(s||'').toLowerCase().trim().split(/\s+/).filter(Boolean); }
+    function containsAll(text, query){
+      if(!query || !query.trim()) return true;
+      var t = String(text||'').toLowerCase();
+      var q = tokens(query);
+      for(var i=0;i<q.length;i++){ if(t.indexOf(q[i]) === -1) return false; }
+      return true;
     }
 
-    function render(results) {
+    function computeLeadScore(c, subject, industry, location){
+      var combined = [c.name,c.description,c.address,c.domain].join(' ').toLowerCase();
+      var score = 0;
+      if(containsAll(combined, subject)) score += 50;
+      if(containsAll(combined, industry)) score += 30;
+      if(containsAll(c.address||'', location)) score += 20;
+      if(score===0) score = 10;
+      if(score>100) score = 100;
+      return score;
+    }
+
+    function render(list){
+      var resultsEl = document.getElementById('results');
+      var emptyEl = document.getElementById('empty');
       resultsEl.innerHTML = '';
-      if (!results || results.length === 0) {
-        emptyEl.classList.remove('hidden');
-        return;
-      }
+      if(!list || list.length===0){ emptyEl.classList.remove('hidden'); return; }
       emptyEl.classList.add('hidden');
 
-      results.forEach((c) => {
-        const card = document.createElement('div');
+      for(var i=0;i<list.length;i++){
+        var c = list[i];
+        var card = document.createElement('div');
         card.className = 'p-4 border rounded mb-3';
-
-        card.innerHTML = `
-          <div class="flex justify-between items-start">
-            <div>
-              <div class="text-lg font-semibold">${c.name}</div>
-              <div class="text-sm text-gray-600">
-                ${c.address} • ${c.website ? `<a class="underline" href="${c.website}" target="_blank" rel="noreferrer">Website</a>` : '—'}
-              </div>
-            </div>
-            <div class="text-sm text-gray-700">Lead score: ${c.leadScore ?? '—'}</div>
-          </div>
-          <div class="mt-1 text-sm text-gray-500">Estimated revenue: ${c.revenueRange || '—'}</div>
-          <div class="mt-3">
-            <div class="font-medium">Key contacts</div>
-            ${(!c.contacts || c.contacts.length === 0)
-              ? `<div class="text-gray-500">No contacts found.</div>`
-              : `<ul>${c.contacts.map(p => `
-                   <li class="py-2 border-t flex justify-between">
-                     <div>
-                       <div class="font-medium">
-                         ${p.name || '—'} <span class="text-sm text-gray-500">${p.role ? `• ${p.role}` : ''}</span>
-                       </div>
-                       <div class="text-sm text-gray-600">
-                         ${p.email || 'no email'} • ${p.linkedin ? `<a class="underline" href="${p.linkedin}" target="_blank" rel="noreferrer">LinkedIn</a>` : 'no LinkedIn'}
-                       </div>
-                     </div>
-                     <div class="text-sm text-gray-500">Confidence: ${Math.round((p.confidence || 0) * 100)}%</div>
-                   </li>`).join('')}</ul>`
-            }
-          </div>`;
+        card.innerHTML =
+          '<div class="flex justify-between items-start">' +
+            '<div>' +
+              '<div class="text-lg font-semibold">'+c.name+'</div>' +
+              '<div class="text-sm text-gray-600">'+ (c.address||'') +' • ' +
+                (c.website ? '<a class="underline" target="_blank" rel="noreferrer" href="'+c.website+'">Website</a>' : '—') +
+              '</div>' +
+            '</div>' +
+            '<div class="text-sm text-gray-700">Lead score: '+ (c.leadScore!=null?c.leadScore:'—') +'</div>' +
+          '</div>' +
+          '<div class="mt-1 text-sm text-gray-500">Estimated revenue: '+ (c.revenueRange||'—') +'</div>' +
+          '<div class="mt-3">' +
+            '<div class="font-medium">Key contacts</div>' +
+            (c.contacts && c.contacts.length ? (
+              '<ul>' + c.contacts.map(function(p){ return (
+                '<li class="py-2 border-t flex justify-between">' +
+                  '<div>' +
+                    '<div class="font-medium">'+ (p.name||'—') +' <span class="text-sm text-gray-500">'+ (p.role?('• '+p.role):'') +'</span></div>' +
+                    '<div class="text-sm text-gray-600">'+ (p.email||'no email') +' • '+ (p.linkedin?('<a class="underline" target="_blank" rel="noreferrer" href="'+p.linkedin+'">LinkedIn</a>'):'no LinkedIn') +'</div>' +
+                  '</div>' +
+                  '<div class="text-sm text-gray-500">Confidence: '+ Math.round((p.confidence||0)*100) +'%</div>' +
+                '</li>'
+              ); }).join('') + '</ul>'
+            ) : '<div class="text-gray-500">No contacts found.</div>') +
+          '</div>';
         resultsEl.appendChild(card);
-      });
-    }
-
-    function showFilters(subject, industry, location) {
-      const pills = [];
-      if (subject.trim()) pills.push(`<span class="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded">Subject: ${subject}</span>`);
-      if (industry.trim()) pills.push(`<span class="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded">Industry: ${industry}</span>`);
-      if (location.trim()) pills.push(`<span class="px-2 py-1 bg-gray-100 text-gray-700 border border-gray-200 rounded">Location: ${location}</span>`);
-      if (pills.length) {
-        filtersEl.classList.remove('hidden');
-        filtersEl.innerHTML = `<div class="flex flex-wrap gap-2">${pills.join('')}</div>`;
-      } else {
-        filtersEl.classList.add('hidden');
-        filtersEl.innerHTML = '';
       }
     }
 
-    // Events
-    document.getElementById('form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      errorEl.classList.add('hidden');
-
-      const subject = document.getElementById('subject').value || '';
-      const industry = document.getElementById('industry').value || '';
-      const location = document.getElementById('location').value || '';
-
-      showFilters(subject, industry, location);
-
-      // Filter + score
-      const filtered = DATA.map(c => {
-        const combined = [c.name, c.description, c.address, c.domain].join(' ').toLowerCase();
-        const okSubject = containsAll(combined, subject);
-        const okIndustry = containsAll(combined, industry);
-        const okLocation = containsAll((c.address || '').toLowerCase(), location);
-        const include = okSubject && okIndustry && okLocation;
-        const leadScore = computeLeadScore(c, subject, industry, location);
-        return include ? { ...c, leadScore } : null;
-      }).filter(Boolean)
-        .sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
-
-      render(filtered);
-    });
-
-    document.getElement
+    // --- Wire up UI after DOM is ready ---
+    document.addEventListener('DOMContentLoaded', function(){
+      var form = document.getElementById('form');
+      var resetBtn = document.getElement
