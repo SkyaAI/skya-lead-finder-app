@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skya Lead Finder — Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-50 p-6">
+  <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow p-6 font-sans">
+    <h1 class="text-2xl font-bold mb-4">LeadFinder — Find manufacturers & key contacts</h1>
+
+    <form id="form" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+      <input id="subject" value="AI supply chain" placeholder="Subject (e.g. AI supply chain)" class="p-3 border rounded" />
+      <input id="industry" value="manufacturing" placeholder="Industry (e.g. manufacturing)" class="p-3 border rounded" />
+      <input id="location" value="Sydney, Australia" placeholder="Location (e.g. Sydney, Australia)" class="p-3 border rounded" />
+      <div class="md:col-span-3 flex gap-3 mt-2">
+        <button id="searchBtn" class="px-4 py-2 bg-blue-600 text-white rounded" type="submit">Search</button>
+        <button id="exportBtn" class="px-4 py-2 bg-green-600 text-white rounded" type="button">Export CSV</button>
+        <button id="resetBtn" class="px-4 py-2 bg-gray-200 rounded" type="button">Reset</button>
+      </div>
+    </form>
+
+    <div id="error" class="hidden mb-4 text-red-600"></div>
+    <div id="empty" class="text-gray-500">No results yet. Try a search above.</div>
+    <div id="results"></div>
+
+    <div class="mt-6 text-xs text-gray-400">
+      Demo mode with mock data. No logins, no API calls.
+    </div>
+  </div>
+
+  <script>
+    const resultsEl = document.getElementById('results');
+    const emptyEl = document.getElementById('empty');
+    const errorEl = document.getElementById('error');
+
+    const MOCK = [
+      {
+        name: 'AI Logistics Pty Ltd',
+        website: 'https://ailogistics.example',
+        address: 'CBD, Sydney',
+        domain: 'ailogistics.example',
+        description: 'AI supply chain solutions for manufacturers',
+        leadScore: 78,
+        revenueRange: '$10M–$50M',
+        contacts: [
+          { name: 'Sarah Wong', role: 'CTO', email: 'sarah@ailogistics.example', linkedin: '#', confidence: 0.9 },
+          { name: 'James Roberts', role: 'Head of Supply Chain', email: 'james@ailogistics.example', linkedin: '#', confidence: 0.8 },
+        ],
+      },
+      {
+        name: 'Smart Manufacturing AI',
+        website: 'https://smaiai.example',
+        address: 'North Sydney',
+        domain: 'smaiai.example',
+        description: 'AI for manufacturing optimisation',
+        leadScore: 71,
+        revenueRange: '$5M–$25M',
+        contacts: [
+          { name: 'Priya Patel', role: 'Head of Operations', email: 'priya@smaiai.example', linkedin: '#', confidence: 0.87 },
+        ],
+      },
+    ];
+
+    function render(data) {
+      resultsEl.innerHTML = '';
+      if (!data || data.length === 0) {
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+
+      data.forEach((c) => {
+        const card = document.createElement('div');
+        card.className = 'p-4 border rounded mb-3';
+
+        card.innerHTML = `
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="text-lg font-semibold">${c.name}</div>
+              <div class="text-sm text-gray-600">
+                ${c.address} • ${c.website ? `<a class="underline" href="${c.website}" target="_blank" rel="noreferrer">Website</a>` : '—'}
+              </div>
+            </div>
+            <div class="text-sm text-gray-700">Lead score: ${c.leadScore ?? '—'}</div>
+          </div>
+          <div class="mt-1 text-sm text-gray-500">Estimated revenue: ${c.revenueRange || '—'}</div>
+          <div class="mt-3">
+            <div class="font-medium">Key contacts</div>
+            ${(!c.contacts || c.contacts.length === 0)
+              ? `<div class="text-gray-500">No contacts found.</div>`
+              : `<ul>${c.contacts.map(p => `
+                   <li class="py-2 border-t flex justify-between">
+                     <div>
+                       <div class="font-medium">
+                         ${p.name || '—'} <span class="text-sm text-gray-500">${p.role ? `• ${p.role}` : ''}</span>
+                       </div>
+                       <div class="text-sm text-gray-600">
+                         ${p.email || 'no email'} • ${p.linkedin ? `<a class="underline" href="${p.linkedin}" target="_blank" rel="noreferrer">LinkedIn</a>` : 'no LinkedIn'}
+                       </div>
+                     </div>
+                     <div class="text-sm text-gray-500">Confidence: ${Math.round((p.confidence || 0) * 100)}%</div>
+                   </li>`).join('')}</ul>`
+            }
+          </div>`;
+        resultsEl.appendChild(card);
+      });
+    }
+
+    function toCSV(rows) {
+      return rows.map(r => r.map(cell => `"${String(cell ?? '').replace(/"/g,'""')}"`).join(',')).join('\n');
+    }
+
+    document.getElementById('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      errorEl.classList.add('hidden');
+      render(MOCK); // Always returns mock data
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      document.getElementById('subject').value = 'AI supply chain';
+      document.getElementById('industry').value = 'manufacturing';
+      document.getElementById('location').value = 'Sydney, Australia';
+      resultsEl.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const rows = [['Company','Website','Address','Lead Score','Revenue Range','Contact Name','Contact Role','Contact Email','LinkedIn']];
+      MOCK.forEach(c => {
+        const p = (c.contacts && c.contacts[0]) || {};
+        rows.push([c.name||'', c.website||'', c.address||'', c.leadScore||'', c.revenueRange||'', p.name||'', p.role||'', p.email||'', p.linkedin||'']);
+      });
+      const csv = toCSV(rows);
+      const blob = new Blob([csv], { type:'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), { href:url, download:'leads.csv' });
+      a.click(); URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
