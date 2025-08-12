@@ -5,12 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Skya Lead Generation Bot — Demo</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* small UX polish */
+    .pill { padding: 4px 8px; border-radius: 9999px; font-size: 12px; border: 1px solid #e5e7eb; }
+  </style>
 </head>
 <body class="min-h-screen bg-gray-50 p-6">
   <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow p-6 font-sans">
     <h1 class="text-2xl font-bold mb-4">Skya Lead Generation Bot</h1>
 
-    <form id="form" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+    <!-- Inputs with labels -->
+    <form class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" onsubmit="onSearch(event)">
       <div class="flex flex-col gap-1">
         <label for="subject" class="text-sm font-medium text-gray-700">Subject</label>
         <input id="subject" value="AI supply chain" class="p-3 border rounded" placeholder="e.g. AI supply chain" />
@@ -24,86 +29,10 @@
         <input id="location" value="Sydney, Australia" class="p-3 border rounded" placeholder="e.g. Sydney, Australia" />
       </div>
       <div class="md:col-span-3 flex gap-3 mt-2">
-        <button id="searchBtn" type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Search</button>
-        <button id="exportBtn" type="button" class="px-4 py-2 bg-green-600 text-white rounded">Export CSV</button>
-        <button id="resetBtn" type="button" class="px-4 py-2 bg-gray-200 rounded">Reset</button>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Search</button>
+        <button type="button" onclick="onExport()" class="px-4 py-2 bg-green-600 text-white rounded">Export CSV</button>
+        <button type="button" onclick="onReset()" class="px-4 py-2 bg-gray-200 rounded">Reset</button>
       </div>
     </form>
 
-    <div id="filters" class="mb-3 hidden text-sm"></div>
-    <div id="empty" class="text-gray-500">No results yet. Try a search above.</div>
-    <div id="results"></div>
-
-    <div class="mt-6 text-xs text-gray-400">
-      Demo mode with mock data. No logins, no API calls.
-    </div>
-  </div>
-
-  <script>
-    // Mock dataset
-    const DATA = [
-      {
-        name: 'AI Logistics Pty Ltd',
-        website: 'https://ailogistics.example',
-        address: 'CBD, Sydney',
-        domain: 'ailogistics.example',
-        description: 'AI supply chain solutions for manufacturers',
-        revenueRange: '$10M–$50M',
-        contacts: [
-          { name: 'Sarah Wong', role: 'CTO', email: 'sarah@ailogistics.example', linkedin: '#', confidence: 0.9 },
-          { name: 'James Roberts', role: 'Head of Supply Chain', email: 'james@ailogistics.example', linkedin: '#', confidence: 0.8 }
-        ]
-      },
-      {
-        name: 'Smart Manufacturing AI',
-        website: 'https://smaiai.example',
-        address: 'North Sydney',
-        domain: 'smaiai.example',
-        description: 'AI for manufacturing optimisation',
-        revenueRange: '$5M–$25M',
-        contacts: [
-          { name: 'Priya Patel', role: 'Head of Operations', email: 'priya@smaiai.example', linkedin: '#', confidence: 0.87 }
-        ]
-      },
-      {
-        name: 'Robotics & Co.',
-        website: 'https://roboticsco.example',
-        address: 'Melbourne, Australia',
-        domain: 'roboticsco.example',
-        description: 'Robotics hardware and supply chain analytics for factories',
-        revenueRange: '$25M–$75M',
-        contacts: [
-          { name: 'Tom Nguyen', role: 'COO', email: 'tom@roboticsco.example', linkedin: '#', confidence: 0.82 }
-        ]
-      }
-    ];
-
-    // State
-    let currentResults = [];
-
-    // Helpers
-    const tokens = s => String(s || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
-    function containsAll(text, query) {
-      if (!query || !query.trim()) return true;
-      const t = String(text || '').toLowerCase();
-      return tokens(query).every(q => t.includes(q));
-    }
-    function computeLeadScore(c, subject, industry, location) {
-      const combined = [c.name, c.description, c.address, c.domain].join(' ').toLowerCase();
-      let score = 0;
-      if (containsAll(combined, subject)) score += 50;
-      if (containsAll(combined, industry)) score += 30;
-      if (containsAll(c.address || '', location)) score += 20;
-      return Math.min(100, Math.max(10, score || 10));
-    }
-    function showFilters(subject, industry, location) {
-      const pills = [];
-      if (subject.trim()) pills.push(`<span class="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded">Subject: ${subject}</span>`);
-      if (industry.trim()) pills.push(`<span class="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded">Industry: ${industry}</span>`);
-      if (location.trim()) pills.push(`<span class="px-2 py-1 bg-gray-100 text-gray-700 border border-gray-200 rounded">Location: ${location}</span>`);
-      const filtersEl = document.getElementById('filters');
-      if (pills.length) {
-        filtersEl.classList.remove('hidden');
-        filtersEl.innerHTML = `<div class="flex flex-wrap gap-2">${pills.join('')}</div>`;
-      } else {
-        filtersE
+    <!-- Activ
