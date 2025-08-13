@@ -1,226 +1,299 @@
+<!--
+  Skya Lead Generation Bot
+
+  This is a self‑contained HTML application that lets users search for
+  businesses by subject, industry and location.  It queries a serverless
+  API endpoint (/api/search) to fetch a list of companies, enriches them
+  with any publicly available emails and provides convenient links to
+  search for key roles on LinkedIn.  The page shows up to the top 10
+  results and offers buttons to export those results to CSV or download
+  the full list when more than 10 matches are available.
+
+  This version has been updated to use HTTP GET requests instead of
+  POST requests when talking to the API.  Many serverless platforms
+  including Vercel default to allowing only GET calls without additional
+  configuration; switching to GET resolves the “Method not allowed”
+  errors previously seen.  Query parameters are used to send the
+  subject, industry, location and a boolean flag indicating whether
+  the full list is requested.  The API implementation has been updated
+  accordingly.
+-->
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Skya Lead Generation Bot — Demo</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .pill{padding:4px 8px;border-radius:9999px;font-size:12px;border:1px solid #e5e7eb}
-  </style>
-</head>
-<body class="min-h-screen bg-gray-50 p-6">
-  <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow p-6 font-sans">
-    <h1 class="text-2xl font-bold mb-4">Skya Lead Generation Bot</h1>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Skya Lead Generation Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .pill {
+        padding: 4px 8px;
+        border-radius: 9999px;
+        font-size: 12px;
+        border: 1px solid #e5e7eb;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen bg-gray-50 p-6">
+    <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow p-6 font-sans">
+      <h1 class="text-2xl font-bold mb-4">Skya Lead Generation Bot</h1>
 
-    <!-- no inline handlers -->
-    <form id="searchForm" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-      <div class="flex flex-col gap-1">
-        <label for="subject" class="text-sm font-medium text-gray-700">Subject</label>
-        <input id="subject" value="AI supply chain" class="p-3 border rounded" placeholder="e.g. AI supply chain" />
+      <!-- Search form: no inline handlers for CSP safety -->
+      <form id="searchForm" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div class="flex flex-col gap-1">
+          <label for="subject" class="text-sm font-medium text-gray-700">Subject</label>
+          <input
+            id="subject"
+            value="AI supply chain"
+            class="p-3 border rounded"
+            placeholder="e.g. AI supply chain"
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="industry" class="text-sm font-medium text-gray-700">Industry</label>
+          <input
+            id="industry"
+            value="manufacturing"
+            class="p-3 border rounded"
+            placeholder="e.g. manufacturing"
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="location" class="text-sm font-medium text-gray-700">Location</label>
+          <input
+            id="location"
+            value="Sydney, Australia"
+            class="p-3 border rounded"
+            placeholder="e.g. Sydney, Australia"
+          />
+        </div>
+        <div class="md:col-span-3 flex gap-3 mt-2">
+          <button
+            id="searchBtn"
+            type="submit"
+            class="px-4 py-2 bg-blue-600 text-white rounded"
+          >
+            Search
+          </button>
+          <button
+            id="exportBtn"
+            type="button"
+            class="px-4 py-2 bg-green-600 text-white rounded"
+          >
+            Export CSV
+          </button>
+          <button
+            id="downloadAllBtn"
+            type="button"
+            class="px-4 py-2 bg-green-600 text-white rounded"
+            style="display: none;"
+          >
+            Download all CSV
+          </button>
+          <button
+            id="resetBtn"
+            type="button"
+            class="px-4 py-2 bg-gray-200 rounded"
+          >
+            Reset
+          </button>
+        </div>
+      </form>
+
+      <!-- Dynamic filters, status and results -->
+      <div id="filters" class="mb-2 hidden text-sm"></div>
+      <div id="status" class="text-xs text-gray-500 mb-3"></div>
+      <div id="empty" class="text-gray-500">No results yet. Try a search above.</div>
+      <div id="results"></div>
+
+      <div class="mt-6 text-xs text-gray-400">
+        Google Places used if API key present; otherwise OpenStreetMap. Emails
+        shown are public (from site). “Find on LinkedIn” are search links only.
       </div>
-      <div class="flex flex-col gap-1">
-        <label for="industry" class="text-sm font-medium text-gray-700">Industry</label>
-        <input id="industry" value="manufacturing" class="p-3 border rounded" placeholder="e.g. manufacturing" />
-      </div>
-      <div class="flex flex-col gap-1">
-        <label for="location" class="text-sm font-medium text-gray-700">Location</label>
-        <input id="location" value="Sydney, Australia" class="p-3 border rounded" placeholder="e.g. Sydney, Australia" />
-      </div>
-
-      <div class="md:col-span-3 flex gap-3 mt-2">
-        <button id="searchBtn"  type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Search</button>
-        <button id="exportBtn"  type="button" class="px-4 py-2 bg-green-600 text-white rounded">Export CSV</button>
-        <button id="downloadAllBtn" type="button" class="px-4 py-2 bg-green-600 text-white rounded" style="display:none">
-          Download all CSV
-        </button>
-        <button id="resetBtn"   type="button" class="px-4 py-2 bg-gray-200 rounded">Reset</button>
-      </div>
-    </form>
-
-    <div id="filters" class="mb-2 hidden text-sm"></div>
-    <div id="status" class="text-xs text-gray-500 mb-3"></div>
-
-    <div id="empty" class="text-gray-500">No results yet. Try a search above.</div>
-    <div id="results"></div>
-
-    <div class="mt-6 text-xs text-gray-400">
-      Google Places used if API key present; otherwise OpenStreetMap. Emails shown are public (from site). “Find on LinkedIn” are search links only.
     </div>
-  </div>
 
-  <script>
-    // ===== State =====
-    let visibleResults = [];   // Top 10 shown on screen
-    let lastQuery = null;      // For "Download all"
-    let lastTotal = 0;         // Total matches (server reported)
+    <script>
+      // ===== State =====
+      let visibleResults = [];   // Top 10 shown on screen
+      let lastQuery = null;      // For "Download all"
+      let lastTotal = 0;         // Total matches (server reported)
 
-    // ===== UI helpers =====
-    function pill(t, cls){ return '<span class="pill '+cls+'">'+t+'</span>'; }
-
-    function showFilters(subject, industry, location){
-      const pills = [];
-      if (subject.trim())  pills.push(pill('Subject: '+subject,'bg-blue-50 text-blue-700'));
-      if (industry.trim()) pills.push(pill('Industry: '+industry,'bg-green-50 text-green-700'));
-      if (location.trim()) pills.push(pill('Location: '+location,'bg-gray-100 text-gray-700'));
-      const el = document.getElementById('filters');
-      if (pills.length){
-        el.classList.remove('hidden');
-        el.innerHTML = '<div class="flex flex-wrap gap-2">'+pills.join('')+'</div>';
-      } else {
-        el.classList.add('hidden'); el.innerHTML = '';
+      // ===== UI helpers =====
+      function pill(t, cls) {
+        return '<span class="pill ' + cls + '">' + t + '</span>';
       }
-    }
-
-    function renderResults(list){
-      const resultsEl = document.getElementById('results');
-      const emptyEl   = document.getElementById('empty');
-      resultsEl.innerHTML = '';
-      if (!list || list.length === 0){
-        emptyEl.classList.remove('hidden');
-        return;
+      function showFilters(subject, industry, location) {
+        const pills = [];
+        if (subject.trim()) pills.push(pill('Subject: ' + subject, 'bg-blue-50 text-blue-700'));
+        if (industry.trim()) pills.push(pill('Industry: ' + industry, 'bg-green-50 text-green-700'));
+        if (location.trim()) pills.push(pill('Location: ' + location, 'bg-gray-100 text-gray-700'));
+        const el = document.getElementById('filters');
+        if (pills.length) {
+          el.classList.remove('hidden');
+          el.innerHTML = '<div class="flex flex-wrap gap-2">' + pills.join('') + '</div>';
+        } else {
+          el.classList.add('hidden');
+          el.innerHTML = '';
+        }
       }
-      emptyEl.classList.add('hidden');
-
-      list.forEach(c => {
-        const emailsHtml = (c.emails && c.emails.length)
-          ? '<div class="text-sm"><span class="font-medium">Emails:</span> ' +
-              c.emails.map(e => `<a class="underline" href="mailto:${e}">${e}</a>`).join(', ') +
-            '</div>'
-          : '<div class="text-sm text-gray-500">No public emails found.</div>';
-
-        const liSearch = (c.linkedinSearch || []).slice(0,5)
-          .map(s => `<a class="underline" target="_blank" rel="noreferrer" href="${s.url}">${s.role}</a>`)
-          .join(' • ') || '—';
-
-        const card = document.createElement('div');
-        card.className = 'p-4 border rounded mb-3';
-        card.innerHTML =
-          '<div class="flex justify-between items-start">' +
-            '<div>' +
-              `<div class="text-lg font-semibold">${c.name || '—'}</div>` +
-              `<div class="text-sm text-gray-600">${c.address || ''} • ` +
-                (c.website ? `<a class="underline" href="${c.website}" target="_blank" rel="noreferrer">Website</a>` : '—') +
+      function renderResults(list) {
+        const resultsEl = document.getElementById('results');
+        const emptyEl = document.getElementById('empty');
+        resultsEl.innerHTML = '';
+        if (!list || list.length === 0) {
+          emptyEl.classList.remove('hidden');
+          return;
+        }
+        emptyEl.classList.add('hidden');
+        list.forEach((c) => {
+          const emailsHtml = c.emails && c.emails.length
+            ? '<div class="text-sm"><span class="font-medium">Emails:</span> ' +
+                c.emails.map((e) => `<a class="underline" href="mailto:${e}">${e}</a>`).join(', ') +
+                '</div>'
+            : '<div class="text-sm text-gray-500">No public emails found.</div>';
+          const liSearch = (c.linkedinSearch || [])
+            .slice(0, 5)
+            .map((s) => `<a class="underline" target="_blank" rel="noreferrer" href="${s.url}">${s.role}</a>`) 
+            .join(' • ') || '—';
+          const card = document.createElement('div');
+          card.className = 'p-4 border rounded mb-3';
+          card.innerHTML =
+            '<div class="flex justify-between items-start">' +
+              '<div>' +
+                `<div class="text-lg font-semibold">${c.name || '—'}</div>` +
+                `<div class="text-sm text-gray-600">${c.address || ''} • ` +
+                  (c.website
+                    ? `<a class="underline" href="${c.website}" target="_blank" rel="noreferrer">Website</a>`
+                    : '—') +
+                '</div>' +
               '</div>' +
+              `<div class="text-sm text-gray-700">Lead score: ${c.leadScore != null ? c.leadScore : '—'}</div>` +
             '</div>' +
-            `<div class="text-sm text-gray-700">Lead score: ${c.leadScore!=null?c.leadScore:'—'}</div>` +
-          '</div>' +
-          `<div class="mt-3">${emailsHtml}</div>`+
-          `<div class="mt-2 text-sm"><span class="font-medium">Find on LinkedIn:</span> ${liSearch}</div>`;
-        resultsEl.appendChild(card);
-      });
-    }
-
-    // ===== CSV helper =====
-    function downloadCSV(rows, filename='leads.csv'){
-      if (!rows || !rows.length){ alert('No data to export.'); return; }
-      const header = ['Company','Website','Address','Lead Score','Emails','LinkedIn Role Searches'];
-      const toRow = c => {
-        const emails = (c.emails || []).join('; ');
-        const links  = (c.linkedinSearch || []).slice(0,5).map(s => `${s.role}:${s.url}`).join(' | ');
-        return [c.name||'', c.website||'', c.address||'', c.leadScore||'', emails, links];
-      };
-      const csv = [header, ...rows.map(toRow)]
-        .map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(','))
-        .join('\n');
-      const blob = new Blob([csv], {type:'text/csv'});
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a'); a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-    }
-
-    // ===== Handlers =====
-    async function handleSearch(e){
-      e.preventDefault();
-      const subject  = document.getElementById('subject').value || '';
-      const industry = document.getElementById('industry').value || '';
-      const location = document.getElementById('location').value || '';
-      showFilters(subject, industry, location);
-
-      const statusEl = document.getElementById('status');
-      statusEl.textContent = 'Searching…';
-
-      try {
-        const r = await fetch('/api/search', {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ subject, industry, location, full: false }) // ask top 10
+            `<div class="mt-3">${emailsHtml}</div>` +
+            `<div class="mt-2 text-sm"><span class="font-medium">Find on LinkedIn:</span> ${liSearch}</div>`;
+          resultsEl.appendChild(card);
         });
-        const data = await r.json();
-
-        // Save query for "Download all"
-        lastQuery = { subject, industry, location };
-
-        // Compute totals and visible set
-        lastTotal = (typeof data.total === 'number')
-          ? data.total
-          : ((data.companies && data.companies.length) || 0);
-
-        const sorted = (data.companies || []).slice()
-          .sort((a,b) => (b.leadScore || 0) - (a.leadScore || 0));
-        visibleResults = sorted.slice(0, 10); // show top 10
-
-        // Toggle "Download all" button
-        document.getElementById('downloadAllBtn').style.display =
-          lastTotal > 10 ? 'inline-block' : 'none';
-
-        // Status line
-        statusEl.textContent =
-          `${data.mode || 'live'} • ` +
-          (lastTotal > 10 ? `Showing top 10 of ${lastTotal}` : `${lastTotal} result${lastTotal===1?'':'s'}`) +
-          ` • Query: ${data.queryUsed || '(none)'}${data.errorMessage ? ' • '+data.errorMessage : ''}`;
-
-        renderResults(visibleResults);
-      } catch (err) {
-        statusEl.textContent = 'Error: ' + (err?.message || 'Unknown') ;
-        console.error(err);
       }
-    }
-
-    function handleReset(){
-      document.getElementById('subject').value  = 'AI supply chain';
-      document.getElementById('industry').value = 'manufacturing';
-      document.getElementById('location').value = 'Sydney, Australia';
-      visibleResults = [];
-      lastQuery = null;
-      lastTotal = 0;
-      document.getElementById('filters').classList.add('hidden');
-      document.getElementById('filters').innerHTML = '';
-      document.getElementById('results').innerHTML = '';
-      document.getElementById('empty').classList.remove('hidden');
-      document.getElementById('status').textContent = '';
-      document.getElementById('downloadAllBtn').style.display = 'none';
-    }
-
-    function handleExport(){
-      const list = visibleResults.length ? visibleResults : [];
-      if (!list.length){ alert('Run a search first.'); return; }
-      downloadCSV(list, 'leads-top10.csv');
-    }
-
-    async function handleDownloadAll(){
-      if (!lastQuery){ alert('Run a search first.'); return; }
-      const r = await fetch('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({ ...lastQuery, full: true }) // server returns ALL
+      // ===== CSV helper =====
+      function downloadCSV(rows, filename = 'leads.csv') {
+        if (!rows || !rows.length) {
+          alert('No data to export.');
+          return;
+        }
+        const header = ['Company', 'Website', 'Address', 'Lead Score', 'Emails', 'LinkedIn Role Searches'];
+        const toRow = (c) => {
+          const emails = (c.emails || []).join('; ');
+          const links = (c.linkedinSearch || [])
+            .slice(0, 5)
+            .map((s) => `${s.role}:${s.url}`)
+            .join(' | ');
+          return [c.name || '', c.website || '', c.address || '', c.leadScore || '', emails, links];
+        };
+        const csv = [header, ...rows.map(toRow)]
+          .map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+          .join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+      // ===== Handlers =====
+      async function handleSearch(e) {
+        e.preventDefault();
+        const subject = document.getElementById('subject').value || '';
+        const industry = document.getElementById('industry').value || '';
+        const location = document.getElementById('location').value || '';
+        showFilters(subject, industry, location);
+        const statusEl = document.getElementById('status');
+        statusEl.textContent = 'Searching…';
+        try {
+          // Build query string for GET request
+          const params = new URLSearchParams({
+            subject: subject,
+            industry: industry,
+            location: location,
+            full: 'false',
+          });
+          const r = await fetch('/api/search?' + params.toString());
+          const data = await r.json();
+          // Save query for "Download all"
+          lastQuery = { subject, industry, location };
+          // Compute totals and visible set
+          lastTotal = typeof data.total === 'number' ? data.total : (data.companies && data.companies.length) || 0;
+          const sorted = (data.companies || [])
+            .slice()
+            .sort((a, b) => (b.leadScore || 0) - (a.leadScore || 0));
+          visibleResults = sorted.slice(0, 10);
+          // Toggle "Download all" button
+          document.getElementById('downloadAllBtn').style.display = lastTotal > 10 ? 'inline-block' : 'none';
+          // Status line
+          statusEl.textContent =
+            `${data.mode || 'live'} • ` +
+            (lastTotal > 10 ? `Showing top 10 of ${lastTotal}` : `${lastTotal} result${lastTotal === 1 ? '' : 's'}`) +
+            ` • Query: ${data.queryUsed || '(none)'}${data.errorMessage ? ' • ' + data.errorMessage : ''}`;
+          renderResults(visibleResults);
+        } catch (err) {
+          statusEl.textContent = 'Error: ' + (err?.message || 'Unknown');
+          console.error(err);
+        }
+      }
+      function handleReset() {
+        document.getElementById('subject').value = 'AI supply chain';
+        document.getElementById('industry').value = 'manufacturing';
+        document.getElementById('location').value = 'Sydney, Australia';
+        visibleResults = [];
+        lastQuery = null;
+        lastTotal = 0;
+        document.getElementById('filters').classList.add('hidden');
+        document.getElementById('filters').innerHTML = '';
+        document.getElementById('results').innerHTML = '';
+        document.getElementById('empty').classList.remove('hidden');
+        document.getElementById('status').textContent = '';
+        document.getElementById('downloadAllBtn').style.display = 'none';
+      }
+      function handleExport() {
+        const list = visibleResults.length ? visibleResults : [];
+        if (!list.length) {
+          alert('Run a search first.');
+          return;
+        }
+        downloadCSV(list, 'leads-top10.csv');
+      }
+      async function handleDownloadAll() {
+        if (!lastQuery) {
+          alert('Run a search first.');
+          return;
+        }
+        const params = new URLSearchParams({
+          subject: lastQuery.subject || '',
+          industry: lastQuery.industry || '',
+          location: lastQuery.location || '',
+          full: 'true',
+        });
+        const r = await fetch('/api/search?' + params.toString());
+        const data = await r.json();
+        const all = (data.companies || [])
+          .slice()
+          .sort((a, b) => (b.leadScore || 0) - (a.leadScore || 0));
+        if (!all.length) {
+          alert('No data returned.');
+          return;
+        }
+        downloadCSV(all, 'leads-all.csv');
+      }
+      // ===== Wire up =====
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('searchForm').addEventListener('submit', handleSearch);
+        document.getElementById('searchBtn').addEventListener('click', handleSearch);
+        document.getElementById('exportBtn').addEventListener('click', handleExport);
+        document.getElementById('resetBtn').addEventListener('click', handleReset);
+        document.getElementById('downloadAllBtn').addEventListener('click', handleDownloadAll);
       });
-      const data = await r.json();
-      const all = (data.companies || []).slice()
-        .sort((a,b) => (b.leadScore || 0) - (a.leadScore || 0));
-      if (!all.length){ alert('No data returned.'); return; }
-      downloadCSV(all, 'leads-all.csv');
-    }
-
-    // ===== Wire up (no inline handlers; CSP-safe) =====
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('searchForm').addEventListener('submit', handleSearch);
-      document.getElementById('searchBtn').addEventListener('click', handleSearch);
-      document.getElementById('exportBtn').addEventListener('click', handleExport);
-      document.getElementById('resetBtn').addEventListener('click', handleReset);
-      document.getElementById('downloadAllBtn').addEventListener('click', handleDownloadAll);
-    });
-  </script>
-</body>
+    </script>
+  </body>
 </html>
